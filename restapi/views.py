@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 import urllib.request
 from datetime import datetime
-
+import concurrent.futures
 from django.http import HttpResponse
 from django.contrib.auth.models import User
 
@@ -255,12 +255,12 @@ def reader(url, timeout):
 
 def multi_threaded_reader(urls, num_threads) -> list:
     """
-        Read multiple files through HTTP
+        Read multiple files through HTTP with threadpooling
     """
-    result = []
-    for url in urls:
-        data = reader(url, 60)
-        data = data.decode('utf-8')
-        result.extend(data.split("\n"))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+        future_to_url = {executor.submit(reader, url, 60): url for url in urls}
+        for future in concurrent.futures.as_completed(future_to_url):
+            data = future.result()
+            result.extend(data.split("\n"))
     result = sorted(result, key=lambda elem:elem[1])
     return result
