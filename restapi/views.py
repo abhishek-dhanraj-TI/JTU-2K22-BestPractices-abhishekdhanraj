@@ -189,7 +189,7 @@ def log_processor(request) -> Response:
     if len(log_files) == 0:
         return Response({"status": "failure", "reason": "No log files provided in request"},
                         status=status.HTTP_400_BAD_REQUEST)
-    logs = multiThreadedReader(urls=data['logFiles'], num_threads=data['parallelFileProcessingCount'])
+    logs = multi_threaded_reader(urls=data['logFiles'], num_threads=data['parallelFileProcessingCount'])
     sorted_logs = sort_by_time_stamp(logs)
     cleaned = transform(sorted_logs)
     data = aggregate(cleaned)
@@ -197,10 +197,7 @@ def log_processor(request) -> Response:
     return Response({"response":response}, status=status.HTTP_200_OK)
 
 def sort_by_time_stamp(logs) -> list:
-    data = []
-    for log in logs:
-        data.append(log.split(" "))
-    # print(data)
+    data = [log.split(" ") for log in logs]
     data = sorted(data, key=lambda elem: elem[1])
     return data
 
@@ -208,10 +205,8 @@ def response_format(raw_data) -> list:
     response = []
     for timestamp, data in raw_data.items():
         entry = {'timestamp': timestamp}
-        logs = []
         data = {k: data[k] for k in sorted(data.keys())}
-        for exception, count in data.items():
-            logs.append({'exception': exception, 'count': count})
+        logs = [{'exception': exception, 'count': count} for exception, count in data.items()]
         entry['logs'] = logs
         response.append(entry)
     return response
