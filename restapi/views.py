@@ -19,11 +19,13 @@ from rest_framework import status
 from restapi.models import Expenses, User, Groups, Category
 from restapi.serializers import ExpensesSerializer, GroupSerializer, CategorySerializer, UserSerializer
 from restapi.custom_exception import UnauthorizedUserException
-from utils import sort_by_time_stamp, multi_threaded_reader, response_format, aggregate, transform, normalize
+from utils import sort_by_time_stamp, multi_threaded_reader, response_format, aggregate, transform, normalize, logger, calculate_time
 from constants import MAX_THREADS
+
 
 def index(_request) -> HttpResponse:
     """ Handles the base route"""
+    logger.info(f"Base route executed successfully.")
     return HttpResponse("Hello, world. You're at Rest.")
 
 
@@ -33,13 +35,18 @@ def logout(request) -> Response:
     if 'user' in request:
         if 'auth_token' in request:
             request.user.auth_token.delete()
+            logger.info(f"User logged out successfully.")
             return Response(status=status.HTTP_204_NO_CONTENT)
+        logger.error(f"Error while logging out. User does not have auth token")
+        return Response(status=status.HTTP_401_UNAUTHORIZED)
+    logger.error(f"User not present.")
     return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])
 def balance(request) -> Response:
     """Calculates the balance for the user"""
+
     user = request.user
     expenses = Expenses.objects.filter(users__in=user.expenses.all())
     final_balance = {}
@@ -54,10 +61,12 @@ def balance(request) -> Response:
                 if to_user == user.id:
                     final_balance[from_user] = final_balance.get(from_user, 0) + eb['amount']
         except:
+            logger.error(f"Unable to calculate the balance for the user. eb is missing a key")
             return Response(response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     final_balance = {k: v for k, v in final_balance.items() if v != 0}
 
     response = [{"user": k, "amount": int(v)} for k, v in final_balance.items()]
+    logger.info(f"Balance for the user was calculated successfully.")
     return Response(response, status=status.HTTP_200_OK)
 
 
@@ -84,10 +93,12 @@ class GroupViewSet(ModelViewSet):
 
     def get_queryset(self):
         """Returns Queryset for user"""
+        logger.info(f"Get Query set for group view was called.")
         user = self.request.user
         groups = user.members.all()
         if self.request.query_params.get('q', None) is not None:
             groups = groups.filter(name__icontains=self.request.query_params.get('q', None))
+        logger.info(f"Query set for group view was returned successfully.")
         return groups
 
     def create(self, request, *args, **kwargs) -> Response:
@@ -98,6 +109,7 @@ class GroupViewSet(ModelViewSet):
         group.save()
         group.members.add(user)
         serializer = self.get_serializer(group)
+        logger.info(f"Created a group: {group} and added user: {user}")
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(methods=['put'], detail=True)
@@ -112,8 +124,10 @@ class GroupViewSet(ModelViewSet):
                 Returns:
                         Response
         """
+        
         group = Groups.objects.get(id=pk)
         if group not in self.get_queryset():
+            logger.error(f"Unauthorized user for group: {group} with pk: {pk}")
             raise UnauthorizedUserException()
         body = request.data
         if body.get('add', None) is not None and body['add'].get('user_ids', None) is not None:
@@ -125,23 +139,29 @@ class GroupViewSet(ModelViewSet):
             for user_id in removed_ids:
                 group.members.remove(user_id)
         group.save()
+        logger.info(f"Updated members of group: {group} with pk: {pk}")
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(methods=['get'], detail=True)
+    @calculate_time
     def expenses(self, _request, pk=None) -> Response:
         """Handles GET request for expenses"""
         group = Groups.objects.get(id=pk)
         if group not in self.get_queryset():
+            logger.error(f"Unauthorized user for group: {group} with pk: {pk}")
             raise UnauthorizedUserException()
         expenses = group.expenses_set
         serializer = ExpensesSerializer(expenses, many=True)
+        logger.info(f"Get req for expense of group: {group} with pk: {pk} executed successfully.")
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(methods=['get'], detail=True)
+    @calculate_time
     def balances(self, _request, pk=None) -> Response:
         """Handles GET request for balances"""
         group = Groups.objects.get(id=pk)
         if group not in self.get_queryset():
+            logger.error(f"Unauthorized user for group: {group} with pk: {pk}")
             raise UnauthorizedUserException()
         expenses = Expenses.objects.filter(group=group)
         dues = {}
@@ -165,7 +185,7 @@ class GroupViewSet(ModelViewSet):
                 start += 1
             else:
                 end -= 1
-
+        logger.info(f"Get req for balance of group: {group} with pk: {pk} executed successfully.")
         return Response(balances, status=status.HTTP_200_OK)
 
 
@@ -176,17 +196,20 @@ class ExpensesViewSet(ModelViewSet):
 
     def get_queryset(self):
         """Returns Queryset for expenses for a user"""
+        logger.info(f"Get Query set for Expenses view was called.")
         user = self.request.user
         if self.request.query_params.get('q', None) is not None:
             expenses = Expenses.objects.filter(users__in=user.expenses.all())\
                 .filter(description__icontains=self.request.query_params.get('q', None))
         else:
             expenses = Expenses.objects.filter(users__in=user.expenses.all())
+        logger.info(f"Query set for Expenses view was returned successfully.")
         return expenses
 
 @api_view(['post'])
 @authentication_classes([])
 @permission_classes([])
+@calculate_time
 def log_processor(request) -> Response:
     """Handles POST request for processing log files"""
     data = request.data
@@ -206,5 +229,6 @@ def log_processor(request) -> Response:
     cleaned = transform(sorted_logs)
     data = aggregate(cleaned)
     response = response_format(data)
+    logger.info('log processing executed successfully.')
     return Response({"response":response}, status=status.HTTP_200_OK)
 

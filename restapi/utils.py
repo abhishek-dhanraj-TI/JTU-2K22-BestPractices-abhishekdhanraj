@@ -1,5 +1,26 @@
 from constants import HTTP_READ_TIMEOUT
 
+import logging
+
+# Set baseConfig level to INFO to log all messages except the DEBUG ones
+logging.basicConfig(
+    level=logging.INFO,
+    filename='general.log',
+    filemode='w',
+    format="%(levelname)s :: %(asctime)s :: %(message)s",
+)
+
+logger = logging.getLogger(__name__)
+
+def calculate_time(func):
+    def inner(*args,**kwargs):
+        start = int(time.time() * 1000.0)
+        result = func(*args,**kwargs)  
+        logger.info(f'Function {str(func.__name__)} executed in {(time.time() * 1000.0) - start} ms')
+        return result
+    return inner
+
+
 def sort_by_time_stamp(logs) -> list:
     """
     Returns list of logs Sorted by time stamp
@@ -12,6 +33,7 @@ def sort_by_time_stamp(logs) -> list:
     """
     data = [log.split(" ") for log in logs]
     data = sorted(data, key=lambda elem: elem[1])
+    logger.info("Logs are now sorted by time stamp.")
     return data
 
 def response_format(raw_data) -> list:
@@ -23,6 +45,7 @@ def response_format(raw_data) -> list:
         logs = [{'exception': exception, 'count': count} for exception, count in data.items()]
         entry['logs'] = logs
         response.append(entry)
+    logger.info("Raw data is now formatted.")
     return response
 
 def aggregate(cleaned_logs) -> dict:
@@ -36,6 +59,7 @@ def aggregate(cleaned_logs) -> dict:
         value = data.get(key, {})
         value[text] = value.get(text, 0)+1
         data[key] = value
+    logger.info("Aggregated the cleaned logs successfully.")
     return data
 
 
@@ -66,10 +90,10 @@ def transform(logs) -> list:
 
         result.append([key, text])
         print(key)
-
+    logger.info("Transformed the logs successfully.")
     return result
 
-
+@calculate_time
 def normalize(expense) -> list:
     """ Normalizes expense"""
     user_balances = expense.users.all()
@@ -91,6 +115,7 @@ def normalize(expense) -> list:
             start += 1
         else:
             end -= 1
+    logger.info("Normalized the expense successfully.")
     return balances
 
 
@@ -99,7 +124,7 @@ def reader(url, timeout):
     with urllib.request.urlopen(url, timeout=timeout) as conn:
         return conn.read()
 
-
+@calculate_time
 def multi_threaded_reader(urls, num_threads) -> list:
     """
         Read multiple files through HTTP with threadpooling
@@ -110,4 +135,5 @@ def multi_threaded_reader(urls, num_threads) -> list:
             data = future.result()
             result.extend(data.split("\n"))
     result = sorted(result, key=lambda elem:elem[1])
+    logger.info(f"Read multiple urls using {num_threads} number of threads.")
     return result
