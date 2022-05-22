@@ -6,6 +6,7 @@ from restapi.models import Category, Groups, UserExpense, Expenses
 
 
 class UserSerializer(ModelSerializer):
+    """Serializer for the User model"""
     def create(self, validated_data):
         user = User.objects.create_user(**validated_data)
         return user
@@ -19,12 +20,14 @@ class UserSerializer(ModelSerializer):
 
 
 class CategorySerializer(ModelSerializer):
+    """Serializer for the Category model"""
     class Meta(object):
         model = Category
         fields = '__all__'
 
 
 class GroupSerializer(ModelSerializer):
+    """Serializer for the Group model"""
     members = UserSerializer(many=True, required=False)
 
     class Meta(object):
@@ -33,15 +36,18 @@ class GroupSerializer(ModelSerializer):
 
 
 class UserExpenseSerializer(ModelSerializer):
+    """Serializer for the UserExpense model"""
     class Meta(object):
         model = UserExpense
         fields = ['user', 'amount_owed', 'amount_lent']
 
 
 class ExpensesSerializer(ModelSerializer):
+    """Serializer for the Expenses model"""
     users = UserExpenseSerializer(many=True, required=True)
 
     def create(self, validated_data):
+        """Creates expenses from validated_data"""
         expense_users = validated_data.pop('users')
         expense = Expenses.objects.create(**validated_data)
         for eu in expense_users:
@@ -49,6 +55,7 @@ class ExpensesSerializer(ModelSerializer):
         return expense
 
     def update(self, instance, validated_data):
+        """Updates an instance of expense"""
         user_expenses = validated_data.pop('users')
         instance.description = validated_data['description']
         instance.category = validated_data['category']
@@ -67,6 +74,7 @@ class ExpensesSerializer(ModelSerializer):
         return instance
 
     def validate(self, attrs):
+        """Validates the that a single user must appear single time"""
         user_ids = [user['user'].id for user in attrs['users']]
         if len(set(user_ids)) != len(user_ids):
             raise ValidationError('Single user appears multiple times')

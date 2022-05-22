@@ -22,11 +22,13 @@ from restapi.custom_exception import UnauthorizedUserException
 from utils import HTTP_READ_TIMEOUT
 
 def index(_request) -> HttpResponse:
+    """ Handles the base route"""
     return HttpResponse("Hello, world. You're at Rest.")
 
 
 @api_view(['POST'])
 def logout(request) -> Response:
+    """ Logout the user present in request"""
     if 'user' in request:
         if 'auth_token' in request:
             request.user.auth_token.delete()
@@ -36,6 +38,7 @@ def logout(request) -> Response:
 
 @api_view(['GET'])
 def balance(request) -> Response:
+    """Calculates the balance for the user"""
     user = request.user
     expenses = Expenses.objects.filter(users__in=user.expenses.all())
     final_balance = {}
@@ -58,6 +61,7 @@ def balance(request) -> Response:
 
 
 def normalize(expense) -> list:
+    """ Normalizes expense"""
     user_balances = expense.users.all()
     dues = {}
     for user_balance in user_balances:
@@ -81,22 +85,26 @@ def normalize(expense) -> list:
 
 
 class UserViewSet(ModelViewSet):
+    """View Set for user"""
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = (AllowAny,)
 
 
 class CategoryViewSet(ModelViewSet):
+    """View Set for category"""
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     http_method_names = ['get', 'post']
 
 
 class GroupViewSet(ModelViewSet):
+    """View Set for Group"""
     queryset = Groups.objects.all()
     serializer_class = GroupSerializer
 
     def get_queryset(self):
+        """Returns Queryset for user"""
         user = self.request.user
         groups = user.members.all()
         if self.request.query_params.get('q', None) is not None:
@@ -104,6 +112,7 @@ class GroupViewSet(ModelViewSet):
         return groups
 
     def create(self, request, *args, **kwargs) -> Response:
+        """Creates a group and adds user in that group and saves it"""
         user = self.request.user
         data = self.request.data
         group = Groups(**data)
@@ -114,6 +123,16 @@ class GroupViewSet(ModelViewSet):
 
     @action(methods=['put'], detail=True)
     def members(self, request, pk=None) -> Response:
+        """
+        Performs ADD/REMOVE method specified in the request on the group and saves it.
+
+                Parameters:
+                        request: request
+                        pk: primary key for specified grp
+
+                Returns:
+                        Response
+        """
         group = Groups.objects.get(id=pk)
         if group not in self.get_queryset():
             raise UnauthorizedUserException()
@@ -131,6 +150,7 @@ class GroupViewSet(ModelViewSet):
 
     @action(methods=['get'], detail=True)
     def expenses(self, _request, pk=None) -> Response:
+        """Handles GET request for expenses"""
         group = Groups.objects.get(id=pk)
         if group not in self.get_queryset():
             raise UnauthorizedUserException()
@@ -140,6 +160,7 @@ class GroupViewSet(ModelViewSet):
 
     @action(methods=['get'], detail=True)
     def balances(self, _request, pk=None) -> Response:
+        """Handles GET request for balances"""
         group = Groups.objects.get(id=pk)
         if group not in self.get_queryset():
             raise UnauthorizedUserException()
@@ -170,10 +191,12 @@ class GroupViewSet(ModelViewSet):
 
 
 class ExpensesViewSet(ModelViewSet):
+    """View Set for Expenses"""
     queryset = Expenses.objects.all()
     serializer_class = ExpensesSerializer
 
     def get_queryset(self):
+        """Returns Queryset for expenses for a user"""
         user = self.request.user
         if self.request.query_params.get('q', None) is not None:
             expenses = Expenses.objects.filter(users__in=user.expenses.all())\
@@ -186,6 +209,7 @@ class ExpensesViewSet(ModelViewSet):
 @authentication_classes([])
 @permission_classes([])
 def log_processor(request) -> Response:
+    """Handles POST request for processing log files"""
     data = request.data
     try:
         num_threads = data['parallelFileProcessingCount']
@@ -206,11 +230,21 @@ def log_processor(request) -> Response:
     return Response({"response":response}, status=status.HTTP_200_OK)
 
 def sort_by_time_stamp(logs) -> list:
+    """
+    Returns list of logs Sorted by time stamp
+
+            Parameters:
+                    logs: iterable consists of logs
+
+            Returns:
+                    data (list): list of logs Sorted by time stamp
+    """
     data = [log.split(" ") for log in logs]
     data = sorted(data, key=lambda elem: elem[1])
     return data
 
 def response_format(raw_data) -> list:
+    """Formats the response"""
     response = []
     for timestamp, data in raw_data.items():
         entry = {'timestamp': timestamp}
@@ -221,6 +255,10 @@ def response_format(raw_data) -> list:
     return response
 
 def aggregate(cleaned_logs) -> dict:
+    """ Aggregates the cleaned logs
+        Returns:
+                    data (dict): Aggregated logs
+    """
     data = {}
     for log in cleaned_logs:
         [key, text] = log
@@ -231,6 +269,10 @@ def aggregate(cleaned_logs) -> dict:
 
 
 def transform(logs) -> list:
+    """Transforms the log in a particular format
+        Returns:
+                    result (list): transform logs
+    """
     result = []
     for log in logs:
         [_, timestamp, text] = log
@@ -258,6 +300,7 @@ def transform(logs) -> list:
 
 
 def reader(url, timeout):
+    """Reads an url within specified time"""
     with urllib.request.urlopen(url, timeout=timeout) as conn:
         return conn.read()
 
