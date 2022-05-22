@@ -1,9 +1,4 @@
-#Constants
-MAX_LENGTH = 200
-MAX_DIGITS = 10
-DECIMAL_PLACES = 2
-MAX_THREADS = 30
-HTTP_READ_TIMEOUT = 60
+from constants import HTTP_READ_TIMEOUT
 
 def sort_by_time_stamp(logs) -> list:
     """

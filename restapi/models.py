@@ -5,7 +5,7 @@ from django.db import models
 
 # Create your models here.
 from django.contrib.auth.models import User
-from utils import MAX_DIGITS, MAX_LENGTH, DECIMAL_PLACES
+from constants import MAX_DIGITS, MAX_LENGTH, DECIMAL_PLACES
 
 class Category(models.Model):
     """

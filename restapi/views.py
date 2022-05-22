@@ -20,7 +20,7 @@ from restapi.models import Expenses, User, Groups, Category
 from restapi.serializers import ExpensesSerializer, GroupSerializer, CategorySerializer, UserSerializer
 from restapi.custom_exception import UnauthorizedUserException
 from utils import sort_by_time_stamp, multi_threaded_reader, response_format, aggregate, transform, normalize
-
+from constants import MAX_THREADS
 
 def index(_request) -> HttpResponse:
     """ Handles the base route"""
