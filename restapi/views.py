@@ -19,7 +19,7 @@ from rest_framework import status
 from restapi.models import Expenses, User, Groups, Category
 from restapi.serializers import ExpensesSerializer, GroupSerializer, CategorySerializer, UserSerializer
 from restapi.custom_exception import UnauthorizedUserException
-
+from utils import HTTP_READ_TIMEOUT
 
 def index(_request) -> HttpResponse:
     return HttpResponse("Hello, world. You're at Rest.")
@@ -190,7 +190,7 @@ def log_processor(request) -> Response:
     try:
         num_threads = data['parallelFileProcessingCount']
         log_files = data['logFiles']
-        if num_threads <= 0 or num_threads > 30:
+        if num_threads <= 0 or num_threads > MAX_THREADS:
             return Response({"status": "failure", "reason": "Parallel Processing Count out of expected bounds"},
                             status=status.HTTP_400_BAD_REQUEST)
         if len(log_files) == 0:
@@ -267,7 +267,7 @@ def multi_threaded_reader(urls, num_threads) -> list:
         Read multiple files through HTTP with threadpooling
     """
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
-        future_to_url = {executor.submit(reader, url, 60): url for url in urls}
+        future_to_url = {executor.submit(reader, url, HTTP_READ_TIMEOUT): url for url in urls}
         for future in concurrent.futures.as_completed(future_to_url):
             data = future.result()
             result.extend(data.split("\n"))
