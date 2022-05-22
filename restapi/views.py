@@ -27,8 +27,11 @@ def index(_request) -> HttpResponse:
 
 @api_view(['POST'])
 def logout(request) -> Response:
-    request.user.auth_token.delete()
-    return Response(status=status.HTTP_204_NO_CONTENT)
+    if 'user' in request:
+        if 'auth_token' in request:
+            request.user.auth_token.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+    return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])
@@ -38,13 +41,16 @@ def balance(request) -> Response:
     final_balance = {}
     for expense in expenses:
         expense_balances = normalize(expense)
-        for eb in expense_balances:
-            from_user = eb['from_user']
-            to_user = eb['to_user']
-            if from_user == user.id:
-                final_balance[to_user] = final_balance.get(to_user, 0) - eb['amount']
-            if to_user == user.id:
-                final_balance[from_user] = final_balance.get(from_user, 0) + eb['amount']
+        try:
+            for eb in expense_balances:
+                from_user = eb['from_user']
+                to_user = eb['to_user']
+                if from_user == user.id:
+                    final_balance[to_user] = final_balance.get(to_user, 0) - eb['amount']
+                if to_user == user.id:
+                    final_balance[from_user] = final_balance.get(from_user, 0) + eb['amount']
+        except:
+            return Response(response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     final_balance = {k: v for k, v in final_balance.items() if v != 0}
 
     response = [{"user": k, "amount": int(v)} for k, v in final_balance.items()]
@@ -181,14 +187,17 @@ class ExpensesViewSet(ModelViewSet):
 @permission_classes([])
 def log_processor(request) -> Response:
     data = request.data
-    num_threads = data['parallelFileProcessingCount']
-    log_files = data['logFiles']
-    if num_threads <= 0 or num_threads > 30:
-        return Response({"status": "failure", "reason": "Parallel Processing Count out of expected bounds"},
-                        status=status.HTTP_400_BAD_REQUEST)
-    if len(log_files) == 0:
-        return Response({"status": "failure", "reason": "No log files provided in request"},
-                        status=status.HTTP_400_BAD_REQUEST)
+    try:
+        num_threads = data['parallelFileProcessingCount']
+        log_files = data['logFiles']
+        if num_threads <= 0 or num_threads > 30:
+            return Response({"status": "failure", "reason": "Parallel Processing Count out of expected bounds"},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if len(log_files) == 0:
+            return Response({"status": "failure", "reason": "No log files provided in request"},
+                            status=status.HTTP_400_BAD_REQUEST)
+    except:
+        return Response(response, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     logs = multi_threaded_reader(urls=data['logFiles'], num_threads=data['parallelFileProcessingCount'])
     sorted_logs = sort_by_time_stamp(logs)
     cleaned = transform(sorted_logs)
